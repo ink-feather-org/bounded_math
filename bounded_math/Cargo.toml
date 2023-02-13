@@ -1,0 +1,18 @@
+[package]
+name = "bounded_math"
+version = "0.0.1"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+authors = [
+  "raldone01 <raldone01@gmail.com>",
+  "onestacked <chrisi.schrefl@gmail.com>",
+]
+description = "TODO: Crate description"
+homepage = "https://github.com/raldone01/rust_nightly_crate_rs"
+repository = "https://github.com/raldone01/rust_nightly_crate_rs"
+categories = ["no-std", "rust-patterns"]
+keywords = []
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]

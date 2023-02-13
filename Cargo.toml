@@ -1,0 +1,2 @@
+[workspace]
+members = ["bounded_math"]

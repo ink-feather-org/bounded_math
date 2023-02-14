@@ -1,71 +1,71 @@
 use std::{
-    fmt::Debug,
-    ops::{Add, Mul},
+  fmt::Debug,
+  ops::{Add, Mul},
 };
 
 use crate::{cmp::*, InnerType};
 
 pub struct Integer<const MIN_VAL: InnerType, const MAX_VAL: InnerType>
 where
-    Compare<MIN_VAL, MAX_VAL>: LE,
+  Compare<MIN_VAL, MAX_VAL>: LE,
 {
-    val: InnerType,
+  val: InnerType,
 }
 
 impl<const MIN_VAL: InnerType, const MAX_VAL: InnerType> Debug for Integer<MIN_VAL, MAX_VAL>
 where
-    Compare<MIN_VAL, MAX_VAL>: LE,
+  Compare<MIN_VAL, MAX_VAL>: LE,
 {
-    fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-        writeln!(f, "Integer<{} to {}>: {}", MIN_VAL, MAX_VAL, self.val)
-    }
+  fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+    writeln!(f, "Integer<{} to {}>: {}", MIN_VAL, MAX_VAL, self.val)
+  }
 }
 
 impl<const MIN_VAL: InnerType, const MAX_VAL: InnerType> Integer<MIN_VAL, MAX_VAL>
 where
-    Compare<MIN_VAL, MAX_VAL>: LE,
+  Compare<MIN_VAL, MAX_VAL>: LE,
 {
-    pub const fn new<const VALUE: InnerType>() -> Self
-    where
-        Compare<MIN_VAL, VALUE>: LE,
-        Compare<VALUE, MAX_VAL>: LE,
-    {
-        Self { val: VALUE }
-    }
+  pub const fn new<const VALUE: InnerType>() -> Self
+  where
+    Compare<MIN_VAL, VALUE>: LE,
+    Compare<VALUE, MAX_VAL>: LE,
+  {
+    Self { val: VALUE }
+  }
 
-    pub fn try_change_bounds<const OUTPUT_MIN: InnerType, const OUTPUT_MAX: InnerType>(
-        &self,
-    ) -> Option<Integer<OUTPUT_MIN, OUTPUT_MAX>>
-    where
-        Compare<OUTPUT_MIN, OUTPUT_MAX>: LE,
+  pub fn try_change_bounds<const OUTPUT_MIN: InnerType, const OUTPUT_MAX: InnerType>(
+    &self,
+  ) -> Option<Integer<OUTPUT_MIN, OUTPUT_MAX>>
+  where
+    Compare<OUTPUT_MIN, OUTPUT_MAX>: LE,
+  {
+    if OUTPUT_MIN <= MIN_VAL && OUTPUT_MAX >= MAX_VAL
+      || (OUTPUT_MIN..=OUTPUT_MAX).contains(&self.val)
     {
-        if OUTPUT_MIN <= MIN_VAL && OUTPUT_MAX >= MAX_VAL
-            || (OUTPUT_MIN..=OUTPUT_MAX).contains(&self.val)
-        {
-            Some(Integer::<OUTPUT_MIN, OUTPUT_MAX> { val: self.val })
-        } else {
-            None
-        }
+      Some(Integer::<OUTPUT_MIN, OUTPUT_MAX> { val: self.val })
+    } else {
+      None
     }
+  }
 
-    pub const fn grow_bounds<const OUTPUT_MIN: InnerType, const OUTPUT_MAX: InnerType>(
-        &self,
-    ) -> Integer<OUTPUT_MIN, OUTPUT_MAX>
-    where
-        Compare<OUTPUT_MIN, OUTPUT_MAX>: LE,
-        Compare<OUTPUT_MIN, MIN_VAL>: LE,
-        Compare<OUTPUT_MAX, MAX_VAL>: GE,
-    {
-        Integer::<OUTPUT_MIN, OUTPUT_MAX> { val: self.val }
-    }
+  pub const fn grow_bounds<const OUTPUT_MIN: InnerType, const OUTPUT_MAX: InnerType>(
+    &self,
+  ) -> Integer<OUTPUT_MIN, OUTPUT_MAX>
+  where
+    Compare<OUTPUT_MIN, OUTPUT_MAX>: LE,
+    Compare<OUTPUT_MIN, MIN_VAL>: LE,
+    Compare<OUTPUT_MAX, MAX_VAL>: GE,
+  {
+    Integer::<OUTPUT_MIN, OUTPUT_MAX> { val: self.val }
+  }
 }
 impl<const VALUE: InnerType> Integer<VALUE, VALUE>
 where
-    Compare<VALUE, VALUE>: LE,
+  Compare<VALUE, VALUE>: LE,
 {
-    pub const fn new_exact() -> Self {
-        Self { val: VALUE }
-    }
+  pub const fn new_exact() -> Self {
+    Self { val: VALUE }
+  }
 }
 //impl<
 //        const SRC_MIN_VAL: InnerType,
@@ -129,10 +129,10 @@ impl_op! {Add, add, +}
 impl_op! {Mul, mul, *}
 
 macro_rules! aliases {
-    ($nice_name:ident, $base_type:ty) => {
-        pub type $nice_name =
-            Integer<{ <$base_type>::MIN as InnerType }, { <$base_type>::MAX as InnerType }>;
-    };
+  ($nice_name:ident, $base_type:ty) => {
+    pub type $nice_name =
+      Integer<{ <$base_type>::MIN as InnerType }, { <$base_type>::MAX as InnerType }>;
+  };
 }
 
 aliases!(NiceU8, u8);
@@ -148,38 +148,38 @@ aliases!(NiceI64, i64);
 //aliases!(NiceI128, i128);
 
 macro_rules! impl_try_from {
-    ($from_type:ty) => {
-        impl<const MIN_VAL: InnerType, const MAX_VAL: InnerType> From<$from_type>
-            for Integer<MIN_VAL, MAX_VAL>
-        where
-            Compare<MIN_VAL, MAX_VAL>: LE,
-            Compare<MIN_VAL, { <$from_type>::MIN as InnerType }>: LE,
-            Compare<MAX_VAL, { <$from_type>::MAX as InnerType }>: GE,
-        {
-            fn from(from_val: $from_type) -> Self {
-                Integer {
-                    val: from_val as InnerType,
-                }
+  ($from_type:ty) => {
+    impl<const MIN_VAL: InnerType, const MAX_VAL: InnerType> From<$from_type>
+      for Integer<MIN_VAL, MAX_VAL>
+    where
+      Compare<MIN_VAL, MAX_VAL>: LE,
+      Compare<MIN_VAL, { <$from_type>::MIN as InnerType }>: LE,
+      Compare<MAX_VAL, { <$from_type>::MAX as InnerType }>: GE,
+    {
+      fn from(from_val: $from_type) -> Self {
+        Integer {
+          val: from_val as InnerType,
+        }
+      }
+    }
+
+    /*impl<const MIN_VAL: InnerType, const MAX_VAL: InnerType> TryFrom<Integer<MIN_VAL, MAX_VAL>>
+        for $from_type
+    where
+        Compare<MIN_VAL, MAX_VAL>: LT,
+    {
+        type Error = ();
+        fn try_from(from_val: Integer<MIN_VAL, MAX_VAL>) -> Result<Self, Self::Error> {
+            if (from_val.val >= <$from_type>::MIN as InnerType
+                && from_val.val <= <$from_type>::MAX as InnerType)
+            {
+                Ok(from_val.val as $from_type)
+            } else {
+                Err(())
             }
         }
-
-        /*impl<const MIN_VAL: InnerType, const MAX_VAL: InnerType> TryFrom<Integer<MIN_VAL, MAX_VAL>>
-            for $from_type
-        where
-            Compare<MIN_VAL, MAX_VAL>: LT,
-        {
-            type Error = ();
-            fn try_from(from_val: Integer<MIN_VAL, MAX_VAL>) -> Result<Self, Self::Error> {
-                if (from_val.val >= <$from_type>::MIN as InnerType
-                    && from_val.val <= <$from_type>::MAX as InnerType)
-                {
-                    Ok(from_val.val as $from_type)
-                } else {
-                    Err(())
-                }
-            }
-        }*/
-    };
+    }*/
+  };
 }
 
 impl_try_from!(u8);

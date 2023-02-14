@@ -3,22 +3,22 @@ use crate::InnerType;
 pub struct Compare<const A: InnerType, const B: InnerType>;
 
 trait DoCompare {
-    const EQ: bool;
-    const NE: bool;
+  const EQ: bool;
+  const NE: bool;
 
-    const LT: bool;
-    const LE: bool;
+  const LT: bool;
+  const LE: bool;
 
-    const GT: bool;
-    const GE: bool;
+  const GT: bool;
+  const GE: bool;
 }
 impl<const A: InnerType, const B: InnerType> DoCompare for Compare<A, B> {
-    const EQ: bool = A == B;
-    const NE: bool = A != B;
-    const LT: bool = A < B;
-    const LE: bool = A <= B;
-    const GT: bool = A > B;
-    const GE: bool = A >= B;
+  const EQ: bool = A == B;
+  const NE: bool = A != B;
+  const LT: bool = A < B;
+  const LE: bool = A <= B;
+  const GT: bool = A > B;
+  const GE: bool = A >= B;
 }
 
 pub trait EQ {}

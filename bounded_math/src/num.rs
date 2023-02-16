@@ -1,195 +1,202 @@
-use std::{
-  fmt::Debug,
-  ops::{Add, Mul},
-};
+use core::{fmt::Debug, ops::RangeInclusive};
+use std::marker::Destruct;
 
-use crate::{cmp::*, InnerType};
-
-pub struct Integer<const MIN_VAL: InnerType, const MAX_VAL: InnerType>
-where
-  Compare<MIN_VAL, MAX_VAL>: LE,
-{
-  val: InnerType,
+use crate::InnerType;
+pub trait RangeIsEmpty<const RANGE: RangeInclusive<InnerType>> {
+  const RET: bool;
+}
+impl<const RANGE: RangeInclusive<InnerType>> RangeIsEmpty<RANGE> for () {
+  const RET: bool = RANGE.is_empty();
 }
 
-impl<const MIN_VAL: InnerType, const MAX_VAL: InnerType> Debug for Integer<MIN_VAL, MAX_VAL>
+#[derive(Clone, Copy)]
+pub struct Integer<const RANGE: RangeInclusive<InnerType>>
 where
-  Compare<MIN_VAL, MAX_VAL>: LE,
+  (): RangeIsEmpty<RANGE, RET = false>,
+{
+  pub(crate) val: InnerType,
+}
+
+trait ContainsRet<const VALUE: InnerType> {
+  const RET: bool;
+}
+
+impl<const RANGE: RangeInclusive<InnerType>, const VALUE: InnerType> ContainsRet<VALUE>
+  for Integer<RANGE>
+where
+  (): RangeIsEmpty<RANGE, RET = false>,
+{
+  const RET: bool = RANGE.contains(&VALUE);
+}
+
+pub trait ValInRange<const VALUE: InnerType> {}
+impl<const RANGE: RangeInclusive<InnerType>, const VALUE: InnerType> ValInRange<VALUE>
+  for Integer<RANGE>
+where
+  (): RangeIsEmpty<RANGE, RET = false>,
+  Self: ContainsRet<VALUE, RET = true>,
+{
+}
+pub trait RangeInRange<const CONTAINED_RANGE: RangeInclusive<InnerType>> {
+  const CONTAINED: bool;
+}
+impl<const RANGE: RangeInclusive<InnerType>, const CONTAINED_RANGE: RangeInclusive<InnerType>>
+  RangeInRange<CONTAINED_RANGE> for Integer<RANGE>
+where
+  (): RangeIsEmpty<RANGE, RET = false>,
+{
+  const CONTAINED: bool =
+    RANGE.contains(CONTAINED_RANGE.start()) && RANGE.contains(CONTAINED_RANGE.end());
+}
+
+impl<const RANGE: RangeInclusive<InnerType>> Debug for Integer<RANGE>
+where
+  (): RangeIsEmpty<RANGE, RET = false>,
 {
   fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-    writeln!(f, "Integer<{} to {}>: {}", MIN_VAL, MAX_VAL, self.val)
+    write!(
+      f,
+      "Integer<{}..={}>: {}",
+      RANGE.start(),
+      RANGE.end(),
+      self.val
+    )
   }
 }
-
-impl<const MIN_VAL: InnerType, const MAX_VAL: InnerType> Integer<MIN_VAL, MAX_VAL>
+pub trait IsExact {
+  const EXACT: bool;
+}
+impl<const RANGE: RangeInclusive<InnerType>> IsExact for Integer<RANGE>
 where
-  Compare<MIN_VAL, MAX_VAL>: LE,
+  (): RangeIsEmpty<RANGE, RET = false>,
+{
+  const EXACT: bool = RANGE.start() == RANGE.end();
+}
+
+impl<const RANGE: RangeInclusive<InnerType>> Integer<RANGE>
+where
+  (): RangeIsEmpty<RANGE, RET = false>,
 {
   pub const fn new<const VALUE: InnerType>() -> Self
   where
-    Compare<MIN_VAL, VALUE>: LE,
-    Compare<VALUE, MAX_VAL>: LE,
+    Self: ValInRange<VALUE>,
   {
     Self { val: VALUE }
   }
-
-  pub fn try_change_bounds<const OUTPUT_MIN: InnerType, const OUTPUT_MAX: InnerType>(
-    &self,
-  ) -> Option<Integer<OUTPUT_MIN, OUTPUT_MAX>>
+  pub const fn new_exact() -> Self
   where
-    Compare<OUTPUT_MIN, OUTPUT_MAX>: LE,
+    Self: IsExact<EXACT = true>,
   {
-    if OUTPUT_MIN <= MIN_VAL && OUTPUT_MAX >= MAX_VAL
-      || (OUTPUT_MIN..=OUTPUT_MAX).contains(&self.val)
+    Self {
+      val: *RANGE.start(),
+    }
+  }
+}
+trait RangeNotEmpty {}
+
+#[const_trait]
+pub trait IntegerRange: Copy + ~const Into<InnerType> {
+  const RANGE: RangeInclusive<InnerType>;
+
+  fn get_value(self) -> InnerType;
+
+  fn to_integer(self) -> Integer<{ Self::RANGE }>
+  where
+    (): RangeIsEmpty<{ Self::RANGE }, RET = false>,
+  {
+    let Ok(ret) = self.get_value().try_into() else {
+      unreachable!()
+    };
+    ret
+  }
+
+  fn to<T: ~const IntegerRange + ~const TryFrom<InnerType>>(self) -> T
+  where
+    (): RangeIsEmpty<{ Self::RANGE }, RET = false>,
+    (): RangeIsEmpty<{ T::RANGE }, RET = false>,
+    Integer<{ T::RANGE }>: RangeInRange<{ Self::RANGE }, CONTAINED = true>,
+    Result<T, T::Error>: ~const Destruct,
+  {
+    let Ok(ret) = self.get_value().try_into() else {
+        unreachable!()
+    };
+    ret
+  }
+  fn try_to<T: ~const IntegerRange + ~const From<InnerType>>(self) -> Option<T>
+  where
+    (): RangeIsEmpty<{ Self::RANGE }, RET = false>,
+    (): RangeIsEmpty<{ T::RANGE }, RET = false>,
+  {
+    if Self::RANGE.contains(&Self::RANGE.start()) && Self::RANGE.contains(&Self::RANGE.end())
+      || Self::RANGE.contains(&self.into())
     {
-      Some(Integer::<OUTPUT_MIN, OUTPUT_MAX> { val: self.val })
+      Some(self.get_value().into())
     } else {
       None
     }
   }
-
-  pub const fn grow_bounds<const OUTPUT_MIN: InnerType, const OUTPUT_MAX: InnerType>(
-    &self,
-  ) -> Integer<OUTPUT_MIN, OUTPUT_MAX>
-  where
-    Compare<OUTPUT_MIN, OUTPUT_MAX>: LE,
-    Compare<OUTPUT_MIN, MIN_VAL>: LE,
-    Compare<OUTPUT_MAX, MAX_VAL>: GE,
-  {
-    Integer::<OUTPUT_MIN, OUTPUT_MAX> { val: self.val }
-  }
 }
-impl<const VALUE: InnerType> Integer<VALUE, VALUE>
+
+impl<const RANGE_GEN: RangeInclusive<InnerType>> const IntegerRange for Integer<RANGE_GEN>
 where
-  Compare<VALUE, VALUE>: LE,
+  (): RangeIsEmpty<RANGE_GEN, RET = false>,
 {
-  pub const fn new_exact() -> Self {
-    Self { val: VALUE }
+  const RANGE: RangeInclusive<InnerType> = RANGE_GEN;
+
+  fn get_value(self) -> InnerType {
+    self.val
   }
 }
-//impl<
-//        const SRC_MIN_VAL: InnerType,
-//        const SRC_MAX_VAL: InnerType,
-//        const DST_MIN_VAL: InnerType,
-//        const DST_MAX_VAL: InnerType,
-//    > From<Integer<SRC_MIN_VAL, SRC_MAX_VAL>> for Integer<DST_MIN_VAL, DST_MAX_VAL>
-//where
-//    Compare<SRC_MIN_VAL, SRC_MAX_VAL>: LE,
-//    Compare<DST_MIN_VAL, DST_MAX_VAL>: LE,
-//    Compare<SRC_MIN_VAL, DST_MIN_VAL>: LT,
-//{
-//    fn from(value: Integer<SRC_MIN_VAL, SRC_MAX_VAL>) -> Self {
-//        todo!()
-//    }
-//}
 
-//impl<
-//        const SRC_MIN_VAL: InnerType,
-//        const SRC_MAX_VAL: InnerType,
-//        const DST_MIN_VAL: InnerType,
-//        const DST_MAX_VAL: InnerType,
-//    > TryFrom<Integer<SRC_MIN_VAL, SRC_MAX_VAL>> for Integer<DST_MIN_VAL, DST_MAX_VAL>
-//where
-//    Compare<SRC_MIN_VAL, SRC_MAX_VAL>: LE,
-//    Compare<DST_MIN_VAL, DST_MAX_VAL>: LE,
-//    Compare<SRC_MIN_VAL, DST_MIN_VAL>: LT,
-//    Compare<SRC_MAX_VAL, DST_MAX_VAL>: GT,
-//{
-//    type Error = ();
-//
-//    fn try_from(value: Integer<SRC_MIN_VAL, SRC_MAX_VAL>) -> Result<Self, Self::Error> {
-//        todo!()
-//    }
-//}
-
-macro_rules! impl_op {
-    ($op_tr:ident, $op_fn_name:ident, $op_symb:tt) => {
-        impl<
-                const LHS_MIN_VAL: InnerType,
-                const LHS_MAX_VAL: InnerType,
-                const RHS_MIN_VAL: InnerType,
-                const RHS_MAX_VAL: InnerType,
-            > $op_tr<Integer<LHS_MIN_VAL, LHS_MAX_VAL>> for Integer<RHS_MIN_VAL, RHS_MAX_VAL>
-        where
-        Compare<LHS_MIN_VAL, LHS_MAX_VAL>: LE,
-        Compare<RHS_MIN_VAL, RHS_MAX_VAL>: LE,
-        Compare<{ LHS_MIN_VAL $op_symb RHS_MIN_VAL }, { LHS_MAX_VAL $op_symb RHS_MAX_VAL }>: LE,
-        {
-            type Output = Integer<{ LHS_MIN_VAL $op_symb RHS_MIN_VAL }, { LHS_MAX_VAL $op_symb RHS_MAX_VAL }>;
-
-            fn $op_fn_name(self, rhs: Integer<LHS_MIN_VAL, LHS_MAX_VAL>) -> Self::Output {
-                Integer {
-                    val: self.val $op_symb rhs.val,
-                }
-            }
-        }
-    };
+impl<const RANGE: RangeInclusive<InnerType>> const From<Integer<RANGE>> for InnerType
+where
+  (): RangeIsEmpty<RANGE, RET = false>,
+{
+  fn from(value: Integer<RANGE>) -> Self {
+    value.val
+  }
 }
-impl_op! {Add, add, +}
-impl_op! {Mul, mul, *}
-
-macro_rules! aliases {
-  ($nice_name:ident, $base_type:ty) => {
-    pub type $nice_name =
-      Integer<{ <$base_type>::MIN as InnerType }, { <$base_type>::MAX as InnerType }>;
-  };
+impl<const RANGE: RangeInclusive<InnerType>> const From<InnerType> for Integer<RANGE>
+where
+  (): RangeIsEmpty<RANGE, RET = false>,
+{
+  fn from(value: InnerType) -> Self {
+    Self { val: value }
+  }
 }
+pub mod aliases {
+  //use core::num::{NonZeroU8, NonZeroU16, NonZeroU32, NonZeroU64};
 
-aliases!(NiceU8, u8);
-aliases!(NiceU16, u16);
-aliases!(NiceU32, u32);
-aliases!(NiceU64, u64);
-//aliases!(NiceU128, u128);
-
-aliases!(NiceI8, i8);
-aliases!(NiceI16, i16);
-aliases!(NiceI32, i32);
-aliases!(NiceI64, i64);
-//aliases!(NiceI128, i128);
-
-macro_rules! impl_try_from {
-  ($from_type:ty) => {
-    impl<const MIN_VAL: InnerType, const MAX_VAL: InnerType> From<$from_type>
-      for Integer<MIN_VAL, MAX_VAL>
-    where
-      Compare<MIN_VAL, MAX_VAL>: LE,
-      Compare<MIN_VAL, { <$from_type>::MIN as InnerType }>: LE,
-      Compare<MAX_VAL, { <$from_type>::MAX as InnerType }>: GE,
-    {
-      fn from(from_val: $from_type) -> Self {
-        Integer {
-          val: from_val as InnerType,
+  use super::*;
+  macro_rules! aliases {
+    ($nice_name:ident, $base_type:ty) => {
+      impl const IntegerRange for $base_type {
+        const RANGE: RangeInclusive<InnerType> =
+          <$base_type>::MIN as InnerType..=<$base_type>::MAX as InnerType;
+        fn get_value(self) -> InnerType {
+          self.into()
         }
       }
-    }
 
-    /*impl<const MIN_VAL: InnerType, const MAX_VAL: InnerType> TryFrom<Integer<MIN_VAL, MAX_VAL>>
-        for $from_type
-    where
-        Compare<MIN_VAL, MAX_VAL>: LT,
-    {
-        type Error = ();
-        fn try_from(from_val: Integer<MIN_VAL, MAX_VAL>) -> Result<Self, Self::Error> {
-            if (from_val.val >= <$from_type>::MIN as InnerType
-                && from_val.val <= <$from_type>::MAX as InnerType)
-            {
-                Ok(from_val.val as $from_type)
-            } else {
-                Err(())
-            }
-        }
-    }*/
-  };
+      pub type $nice_name = Integer<{ <$base_type>::RANGE }>;
+    };
+  }
+
+  aliases!(NiceU8, u8);
+  aliases!(NiceU16, u16);
+  aliases!(NiceU32, u32);
+  aliases!(NiceU64, u64);
+  //aliases!(NiceU128, u128);
+
+  aliases!(NiceI8, i8);
+  aliases!(NiceI16, i16);
+  aliases!(NiceI32, i32);
+  aliases!(NiceI64, i64);
+  aliases!(NiceI128, i128);
+
+  //aliases!(NiceNonZeroU8, NonZeroU8);
+  //aliases!(NiceNonZeroU16, NonZeroU16);
+  //aliases!(NiceNonZeroU32, NonZeroU32);
+  //aliases!(NiceNonZeroU64, NonZeroU64);
+  //aliases!(NiceNonZeroU128, NonZeroU128);
 }
-
-impl_try_from!(u8);
-impl_try_from!(u16);
-impl_try_from!(u32);
-impl_try_from!(u64);
-//impl_try_from!(u128);
-
-impl_try_from!(i8);
-impl_try_from!(i16);
-impl_try_from!(i32);
-impl_try_from!(i64);
-//impl_try_from!(i128);

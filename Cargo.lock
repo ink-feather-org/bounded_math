@@ -3,5 +3,16 @@
 version = 3
 
 [[package]]
+name = "bigint"
+version = "0.0.1"
+dependencies = [
+ "const_box",
+]
+
+[[package]]
 name = "bounded_math"
+version = "0.0.1"
+
+[[package]]
+name = "const_box"
 version = "0.0.1"

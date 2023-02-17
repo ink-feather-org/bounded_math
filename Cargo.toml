@@ -1,2 +1,2 @@
 [workspace]
-members = ["bounded_math"]
+members = ["bounded_math", "const_box", "bigint"]

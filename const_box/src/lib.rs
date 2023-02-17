@@ -10,6 +10,9 @@
 #![feature(const_slice_from_raw_parts_mut)]
 #![feature(const_alloc_layout)]
 #![feature(const_maybe_uninit_zeroed)]
+#![feature(strict_provenance)]
+#![feature(inline_const)]
+#![warn(fuzzy_provenance_casts)]
 #![no_std]
 
 extern crate alloc;
@@ -17,6 +20,7 @@ extern crate alloc;
 use core::{
   alloc::Layout,
   borrow::{Borrow, BorrowMut},
+  cell::UnsafeCell,
   cmp::Ordering,
   fmt::{Debug, Display},
   intrinsics::const_deallocate,
@@ -31,14 +35,25 @@ use core::{
 
 use alloc::{boxed::Box, fmt};
 
+//impl<T: ?Sized> From<*const T> for Ptr<T> {
+//  fn from(ptr: *const T) -> Self {
+//    Self {
+//      immutable: ptr,
+//      _mut: PhantomData,
+//    }
+//  }
+//}
+
 pub struct ConstBox<T: ?Sized> {
   const_allocated: Option<Layout>,
-  ptr: *mut T,
+  ptr: *const UnsafeCell<T>,
   // Here so dropcheck knowns we own a T
   _p: PhantomData<T>,
 }
 impl<T> ConstBox<T> {
   pub const fn new(val: T) -> ConstBox<T> {
+    const C: *const u8 = const { unsafe { const_allocate(1, 1) as *const u8 } };
+
     const fn alloc_const<T>(val: T) -> ConstBox<T> {
       let layout = Layout::new::<T>();
 
@@ -46,15 +61,15 @@ impl<T> ConstBox<T> {
       unsafe { ptr.write(val) };
       ConstBox {
         const_allocated: Some(layout),
-        ptr,
-        _p: PhantomData::<T>,
+        ptr: ptr as *const UnsafeCell<T>,
+        _p: PhantomData,
       }
     }
     fn alloc_rt<T>(val: T) -> ConstBox<T> {
       ConstBox {
         const_allocated: None,
-        ptr: Box::into_raw(Box::new(val)),
-        _p: PhantomData::<T>,
+        ptr: Box::into_raw(Box::new(val)) as *const UnsafeCell<T>,
+        _p: PhantomData,
       }
     }
     unsafe { const_eval_select((val,), alloc_const, alloc_rt) }
@@ -75,14 +90,14 @@ impl<T: ~const Clone + ?Sized> From<&T> for ConstBox<T> {
       unsafe { ptr.write(val.clone()) };
       ConstBox {
         const_allocated: Some(layout),
-        ptr,
+        ptr: ptr as *const UnsafeCell<T>,
         _p: PhantomData,
       }
     }
     fn alloc_rt<T: Clone + ?Sized>(val: &T) -> ConstBox<T> {
       ConstBox {
         const_allocated: None,
-        ptr: Box::into_raw(Box::new(val.clone())),
+        ptr: Box::into_raw(Box::new(val.clone())) as *const UnsafeCell<T>,
         _p: PhantomData,
       }
     }
@@ -103,14 +118,15 @@ impl<T: Clone> ConstBox<[MaybeUninit<T>]> {
 
       ConstBox {
         const_allocated: Some(layout),
-        ptr: slice,
+        ptr: slice as *const UnsafeCell<_>,
         _p: PhantomData,
       }
     }
     fn alloc_rt<T>(len: usize) -> ConstBox<[MaybeUninit<T>]> {
       ConstBox {
         const_allocated: None,
-        ptr: Box::into_raw(Box::new_uninit_slice(len)),
+        ptr: Box::into_raw(Box::<[MaybeUninit<T>]>::new_uninit_slice(len))
+          as *const UnsafeCell<[MaybeUninit<T>]>,
         _p: PhantomData,
       }
     }
@@ -135,14 +151,15 @@ impl<T: Clone> ConstBox<[MaybeUninit<T>]> {
 
       ConstBox {
         const_allocated: Some(layout),
-        ptr: slice,
+        ptr: slice as *const UnsafeCell<[MaybeUninit<T>]>,
         _p: PhantomData,
       }
     }
     fn alloc_rt<T>(len: usize) -> ConstBox<[MaybeUninit<T>]> {
       ConstBox {
         const_allocated: None,
-        ptr: Box::into_raw(Box::new_zeroed_slice(len)),
+        ptr: Box::into_raw(Box::<[MaybeUninit<T>]>::new_zeroed_slice(len))
+          as *const UnsafeCell<[MaybeUninit<T>]>,
         _p: PhantomData,
       }
     }
@@ -151,7 +168,7 @@ impl<T: Clone> ConstBox<[MaybeUninit<T>]> {
   pub const unsafe fn assume_init(self) -> ConstBox<[T]> {
     let ret = ConstBox {
       const_allocated: self.const_allocated,
-      ptr: self.ptr as *mut [T],
+      ptr: UnsafeCell::raw_get(self.ptr) as *const UnsafeCell<[T]>,
       _p: PhantomData,
     };
     mem::forget(self);
@@ -175,18 +192,25 @@ impl<T: ?Sized> const Drop for ConstBox<T> {
           panic!("?Sized types can't be dropped in const yet")
         }
         //unsafe { val.ptr.drop_in_place() };
-        unsafe { const_deallocate(val.ptr as *mut u8, layout.size(), layout.align()) }
+        unsafe {
+          const_deallocate(
+            UnsafeCell::raw_get(val.ptr) as *mut u8,
+            layout.size(),
+            layout.align(),
+          )
+        }
       } else {
         unreachable!()
       }
     }
     fn drop_rt<T: ?Sized>(val: &mut ConstBox<T>) {
       if let Some(layout) = val.const_allocated {
-        unsafe { val.ptr.drop_in_place() };
-
-        unsafe { const_deallocate(val.ptr as *mut u8, layout.size(), layout.align()) }
+        todo!()
+        //unsafe { val.ptr.drop_in_place() };
+        //
+        //unsafe { const_deallocate(val.ptr as *mut u8, layout.size(), layout.align()) }
       } else {
-        unsafe { Box::from_raw(val.ptr) };
+        unsafe { Box::from_raw(UnsafeCell::raw_get(val.ptr)) };
       }
     }
 
@@ -222,24 +246,38 @@ impl<T: ?Sized> const BorrowMut<T> for ConstBox<T> {
 
 impl<T: ?Sized> const AsRef<T> for ConstBox<T> {
   fn as_ref(&self) -> &T {
-    unsafe { &*self.ptr }
+    unsafe { &*UnsafeCell::raw_get(self.ptr) }
   }
 }
 impl<T: ?Sized> const AsMut<T> for ConstBox<T> {
   fn as_mut(&mut self) -> &mut T {
-    unsafe { &mut *self.ptr }
+    const fn as_mut_ct<T: ?Sized>(val: &mut ConstBox<T>) -> &mut T {
+      unsafe { &mut *UnsafeCell::raw_get(val.ptr) }
+    }
+    fn as_mut_rt<T: ?Sized>(val: &mut ConstBox<T>) -> &mut T {
+      if let Some(layout) = val.const_allocated {
+        todo!()
+        //unsafe { val.ptr.drop_in_place() };
+        //
+        //unsafe { const_deallocate(val.ptr as *mut u8, layout.size(), layout.align()) }
+      } else {
+        unsafe { &mut *UnsafeCell::raw_get(val.ptr) }
+      }
+    }
+
+    unsafe { const_eval_select((self,), as_mut_ct, as_mut_rt) }
   }
 }
 
 impl<T: Debug + ?Sized> Debug for ConstBox<T> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    unsafe { &*self.ptr }.fmt(f)
+    unsafe { &*UnsafeCell::raw_get(self.ptr) }.fmt(f)
   }
 }
 
 impl<T: Display + ?Sized> Display for ConstBox<T> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    unsafe { &*self.ptr }.fmt(f)
+    unsafe { &*UnsafeCell::raw_get(self.ptr) }.fmt(f)
   }
 }
 
@@ -247,18 +285,18 @@ impl<T: Eq + ?Sized> Eq for ConstBox<T> {}
 
 impl<T: ~const PartialEq + ?Sized> const PartialEq for ConstBox<T> {
   fn eq(&self, other: &Self) -> bool {
-    unsafe { &*self.ptr }.eq(other)
+    unsafe { &*UnsafeCell::raw_get(self.ptr) }.eq(other)
   }
 }
 
 impl<T: ~const Ord + ?Sized> const Ord for ConstBox<T> {
   fn cmp(&self, other: &Self) -> Ordering {
-    unsafe { &*self.ptr }.cmp(other)
+    unsafe { &*UnsafeCell::raw_get(self.ptr) }.cmp(other)
   }
 }
 
 impl<T: ~const PartialOrd + ?Sized> const PartialOrd for ConstBox<T> {
   fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-    unsafe { &*self.ptr }.partial_cmp(other)
+    unsafe { &*UnsafeCell::raw_get(self.ptr) }.partial_cmp(other)
   }
 }

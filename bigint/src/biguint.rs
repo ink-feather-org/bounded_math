@@ -10,13 +10,18 @@ use core::{
 
 use const_box::ConstBox;
 
-#[derive(Debug)]
-pub struct BigUInt(ConstBox<[u8]>);
+pub struct BigUInt<T: AsRef<[u8]>>(T);
+
+impl BigUInt<ConstBox<[u8]>> {
+  fn leak_to_rt(self) -> BigUInt<&'static [u8]> {
+    BigUInt(self.0.leak_to_rt())
+  }
+}
 
 // TODO ceil_log2
 
 const fn drop<T: ~const Destruct>(_: T) {}
-
+/*
 impl const Add<BigUInt> for BigUInt {
   type Output = Self;
 
@@ -127,7 +132,7 @@ impl const Ord for BigUInt {
     return Ordering::Equal;
   }
 }
-
+ */
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TryFromBigUIntError;

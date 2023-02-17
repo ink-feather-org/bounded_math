@@ -1,7 +1,3 @@
-use core::{cell::UnsafeCell, intrinsics::const_allocate};
-
-use const_box::ConstBox;
-
 use crate::BigUInt;
 
 #[test]
@@ -36,12 +32,11 @@ fn test_rt_u8() {
 }
 #[test]
 fn test_ct_u8() {
+  let res = {
+    let v1 = BigUInt::from(200u8);
+    let v2 = BigUInt::from(128u8);
 
-  //const res: BigUInt = {
-  //  let v1 = BigUInt::from(200u8);
-  //  let v2 = BigUInt::from(128u8);
-  //
-  //  v1 + v2
-  //};
-  //assert!(res == 228u16.into());
+    (v1 + v2).leak_to_rt()
+  };
+  assert!(res == 228u16.into());
 }

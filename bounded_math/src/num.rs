@@ -127,7 +127,7 @@ pub trait IntegerRange: Copy + ~const Into<InnerType> {
     (): RangeIsEmpty<{ Self::RANGE }, RET = false>,
     (): RangeIsEmpty<{ T::RANGE }, RET = false>,
   {
-    if Self::RANGE.contains(&Self::RANGE.start()) && Self::RANGE.contains(&Self::RANGE.end())
+    if Self::RANGE.contains(T::RANGE.start()) && Self::RANGE.contains(T::RANGE.end())
       || Self::RANGE.contains(&self.into())
     {
       Some(self.get_value().into())

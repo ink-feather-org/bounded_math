@@ -69,15 +69,15 @@ impl_op! {Div, div |lhs, rhs| {
   max = max.max(val1.max(val2));
 
   if effective_start != 1 && rhs.contains(&1) {
-    let val1 = *lhs.start() / 1;
-    let val2 = *lhs.end() / 1;
+    let val1 = *lhs.start();
+    let val2 = *lhs.end();
 
     min = min.min(val1.min(val2));
     max = max.max(val1.max(val2));
   };
   if effective_end != -1 && rhs.contains(&-1) {
-    let val1 = *lhs.start() / -1;
-    let val2 = *lhs.end() / -1;
+    let val1 = -*lhs.start();
+    let val2 = -*lhs.end();
 
     min = min.min(val1.min(val2));
     max = max.max(val1.max(val2));

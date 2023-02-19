@@ -1,4 +1,4 @@
-use core::fmt::Debug;
+use core::{fmt::Debug, mem};
 
 use crate::{num::IntegerRange, Integer};
 
@@ -123,4 +123,39 @@ fn test_u8_i8() {
 #[test]
 fn test_u8_u8() {
   test!(u8, u8);
+}
+
+#[test]
+fn test_size() {
+  assert_eq!(mem::size_of::<Integer<{ -1..=1 }>>(), 1);
+  assert_eq!(mem::size_of::<Integer<{ -128..=127 }>>(), 1);
+
+  assert_eq!(mem::size_of::<Integer<{ -128..=128 }>>(), 2);
+  assert_eq!(
+    mem::size_of::<Integer<{ (i16::MIN as i128)..=(i16::MAX as i128) }>>(),
+    2
+  );
+  assert_eq!(
+    mem::size_of::<Integer<{ (i32::MIN as i128)..=(i32::MAX as i128) }>>(),
+    4
+  );
+  assert_eq!(
+    mem::size_of::<Integer<{ (i64::MIN as i128)..=(i64::MAX as i128) }>>(),
+    8
+  );
+  assert_eq!(mem::size_of::<Integer<{ i128::MIN..=i128::MAX }>>(), 16);
+}
+
+#[test]
+fn test_bound() {
+  const A: i128 = 123456;
+  const B: i128 = 1234567;
+  const C: i128 = A + B;
+
+  let a = Integer::<{ A..=A }>::new_exact();
+  let b = Integer::<{ B..=B }>::new_exact();
+  let sum = a + b;
+
+  let expected = Integer::<{ C..=C }>::new_exact();
+  assert!(sum == expected);
 }

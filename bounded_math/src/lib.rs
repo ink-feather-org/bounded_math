@@ -7,6 +7,8 @@
 #![feature(const_trait_impl)]
 #![feature(const_ops)]
 #![feature(const_convert)]
+#![feature(specialization)]
+#![feature(const_result_drop)]
 #![allow(incomplete_features)]
 #![warn(clippy::pedantic)]
 #![warn(clippy::nursery)]
@@ -15,7 +17,11 @@
 mod impls;
 mod num;
 
-type InnerType = i128;
+mod inner_rep;
+
+type RangeType = RangeInclusive<i128>;
+
+use std::ops::RangeInclusive;
 
 pub use num::{aliases::*, Integer, IntegerRange, RangeInRange, RangeIsEmpty};
 

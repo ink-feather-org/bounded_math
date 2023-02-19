@@ -1,6 +1,6 @@
-use core::ops::{Add, Div, Mul, RangeInclusive, Rem, Sub};
+use core::ops::{Add, Div, Mul, Rem, Sub};
 
-use crate::{InnerType, Integer, IntegerRange, RangeIsEmpty};
+use crate::{Integer, IntegerRange, RangeIsEmpty, RangeType};
 
 macro_rules! impl_op {
     ($op_tr:ident, $op_fn_name:ident | $lhs_name:ident, $rhs_name:ident | {$($body:tt)+}) => {
@@ -8,28 +8,26 @@ macro_rules! impl_op {
       mod $op_fn_name {
         use super::*;
         pub const fn extend_bounds(
-          $lhs_name: RangeInclusive<InnerType>,
-          $rhs_name: RangeInclusive<InnerType>,
-        ) -> RangeInclusive<InnerType> {
+          $lhs_name: RangeType,
+          $rhs_name: RangeType,
+        ) -> RangeType {
           debug_assert!(!$lhs_name.is_empty() && !$rhs_name.is_empty()); // Guaranteed by the type system
           $($body)+
         }
       }
 
-      impl<RHS: ~const IntegerRange, const LHS_RANGE: RangeInclusive<InnerType>>
+      impl<RHS: ~const IntegerRange, const LHS_RANGE: RangeType>
         const $op_tr<RHS> for Integer<LHS_RANGE>
       where
         (): RangeIsEmpty<LHS_RANGE, RET = false>,
         (): RangeIsEmpty<{ RHS::RANGE }, RET = false>,
         (): RangeIsEmpty<{ $op_fn_name::extend_bounds(LHS_RANGE, RHS::RANGE) }, RET = false>,
-        InnerType: ~const From<RHS>
+        i128: ~const From<RHS>
       {
         type Output = Integer<{ $op_fn_name::extend_bounds(LHS_RANGE, RHS::RANGE) }>;
 
         fn $op_fn_name(self, rhs: RHS) -> Self::Output {
-          let res = Integer {
-            val: $op_tr::$op_fn_name(self.val, InnerType::from(rhs)),
-          };
+          let res = Self::Output::from($op_tr::$op_fn_name(self.get_value(), i128::from(rhs)));
           debug_assert!({ $op_fn_name::extend_bounds(LHS_RANGE, RHS::RANGE) }.contains(&res.get_value()));
           // Not usable in const: debug_assert!({ $op_fn_name::extend_bounds(LHS_RANGE, RHS::RANGE) }.contains(&res.get_value()), "Invalid result: {}({:?}, {:?}) = {:?}", stringify!($op_fn_name), self, rhs.to_integer(), res);
           res
@@ -44,9 +42,9 @@ impl_op! {Sub, sub |lhs, rhs| {
   (lhs.end() - rhs.start())
 }}
 impl_op! {Mul, mul |lhs, rhs| {
-  InnerType::min(InnerType::min(lhs.start() * rhs.start(), lhs.start() * rhs.end()), InnerType::min(lhs.end() * rhs.start(), lhs.end() * rhs.end()))
+  i128::min(i128::min(lhs.start() * rhs.start(), lhs.start() * rhs.end()), i128::min(lhs.end() * rhs.start(), lhs.end() * rhs.end()))
   ..=
-  InnerType::max(InnerType::max(lhs.start() * rhs.start(), lhs.start() * rhs.end()), InnerType::max(lhs.end() * rhs.start(), lhs.end() * rhs.end()))
+  i128::max(i128::max(lhs.start() * rhs.start(), lhs.start() * rhs.end()), i128::max(lhs.end() * rhs.start(), lhs.end() * rhs.end()))
 }}
 
 impl_op! {Div, div |lhs, rhs| {
@@ -96,7 +94,7 @@ impl_op! {Rem, rem |lhs, rhs| {
 }}
 
 // TODO these could be optimized since the return value is always the same if the two ranges don't overlap.
-impl<RHS: ~const IntegerRange, const LHS_RANGE: RangeInclusive<InnerType>> const PartialEq<RHS>
+impl<RHS: ~const IntegerRange, const LHS_RANGE: RangeType> const PartialEq<RHS>
   for Integer<LHS_RANGE>
 where
   (): RangeIsEmpty<LHS_RANGE, RET = false> + RangeIsEmpty<{ RHS::RANGE }, RET = false>,
@@ -106,7 +104,7 @@ where
   }
 }
 
-impl<RHS: ~const IntegerRange, const LHS_RANGE: RangeInclusive<InnerType>> const PartialOrd<RHS>
+impl<RHS: ~const IntegerRange, const LHS_RANGE: RangeType> const PartialOrd<RHS>
   for Integer<LHS_RANGE>
 where
   (): RangeIsEmpty<LHS_RANGE, RET = false> + RangeIsEmpty<{ RHS::RANGE }, RET = false>,

@@ -1,55 +1,53 @@
-use core::{fmt::Debug, ops::RangeInclusive};
+use core::fmt::Debug;
 use std::marker::Destruct;
 
-use crate::InnerType;
-pub trait RangeIsEmpty<const RANGE: RangeInclusive<InnerType>> {
+use crate::{
+  inner_rep::{IntRepr, IntRepresentation},
+  RangeType,
+};
+pub trait RangeIsEmpty<const RANGE: RangeType> {
   const RET: bool;
 }
-impl<const RANGE: RangeInclusive<InnerType>> RangeIsEmpty<RANGE> for () {
+impl<const RANGE: RangeType> RangeIsEmpty<RANGE> for () {
   const RET: bool = RANGE.is_empty();
 }
 
 #[derive(Clone, Copy)]
-pub struct Integer<const RANGE: RangeInclusive<InnerType>>
+#[repr(transparent)]
+pub struct Integer<const RANGE: RangeType>
 where
   (): RangeIsEmpty<RANGE, RET = false>,
 {
-  pub(crate) val: InnerType,
+  val: IntRepr<RANGE>,
 }
 
-trait ContainsRet<const VALUE: InnerType> {
+trait ContainsRet<const VALUE: i128> {
   const RET: bool;
 }
 
-impl<const RANGE: RangeInclusive<InnerType>, const VALUE: InnerType> ContainsRet<VALUE>
-  for Integer<RANGE>
+impl<const RANGE: RangeType, const VALUE: i128> ContainsRet<VALUE> for Integer<RANGE>
 where
   (): RangeIsEmpty<RANGE, RET = false>,
 {
   const RET: bool = RANGE.contains(&VALUE);
 }
 
-pub trait ValInRange<const VALUE: InnerType> {}
-impl<const RANGE: RangeInclusive<InnerType>, const VALUE: InnerType> ValInRange<VALUE>
-  for Integer<RANGE>
+pub trait ValInRange<const VALUE: i128> {}
+impl<const RANGE: RangeType, const VALUE: i128> ValInRange<VALUE> for Integer<RANGE>
 where
   (): RangeIsEmpty<RANGE, RET = false>,
   Self: ContainsRet<VALUE, RET = true>,
 {
 }
-pub trait RangeInRange<const CONTAINED_RANGE: RangeInclusive<InnerType>> {
+pub trait RangeInRange<const CONTAINED_RANGE: RangeType> {
   const CONTAINED: bool;
 }
-impl<const RANGE: RangeInclusive<InnerType>, const CONTAINED_RANGE: RangeInclusive<InnerType>>
-  RangeInRange<CONTAINED_RANGE> for Integer<RANGE>
-where
-  (): RangeIsEmpty<RANGE, RET = false>,
-{
+impl<T: IntegerRange, const CONTAINED_RANGE: RangeType> RangeInRange<CONTAINED_RANGE> for T {
   const CONTAINED: bool =
-    RANGE.contains(CONTAINED_RANGE.start()) && RANGE.contains(CONTAINED_RANGE.end());
+    T::RANGE.contains(CONTAINED_RANGE.start()) && T::RANGE.contains(CONTAINED_RANGE.end());
 }
 
-impl<const RANGE: RangeInclusive<InnerType>> Debug for Integer<RANGE>
+impl<const RANGE: RangeType> Debug for Integer<RANGE>
 where
   (): RangeIsEmpty<RANGE, RET = false>,
 {
@@ -66,23 +64,25 @@ where
 pub trait IsExact {
   const EXACT: bool;
 }
-impl<const RANGE: RangeInclusive<InnerType>> IsExact for Integer<RANGE>
+impl<const RANGE: RangeType> IsExact for Integer<RANGE>
 where
   (): RangeIsEmpty<RANGE, RET = false>,
 {
   const EXACT: bool = RANGE.start() == RANGE.end();
 }
 
-impl<const RANGE: RangeInclusive<InnerType>> Integer<RANGE>
+impl<const RANGE: RangeType> Integer<RANGE>
 where
   (): RangeIsEmpty<RANGE, RET = false>,
 {
   #[must_use]
-  pub const fn new<const VALUE: InnerType>() -> Self
+  pub const fn new<const VALUE: i128>() -> Self
   where
     Self: ValInRange<VALUE>,
   {
-    Self { val: VALUE }
+    Self {
+      val: IntRepr::<RANGE>::from_i128(VALUE),
+    }
   }
   #[must_use]
   pub const fn new_exact() -> Self
@@ -90,17 +90,17 @@ where
     Self: IsExact<EXACT = true>,
   {
     Self {
-      val: *RANGE.start(),
+      val: IntRepr::<RANGE>::from_i128(*RANGE.start()),
     }
   }
 }
 trait RangeNotEmpty {}
 
 #[const_trait]
-pub trait IntegerRange: Copy + ~const Into<InnerType> {
-  const RANGE: RangeInclusive<InnerType>;
+pub trait IntegerRange: Copy + ~const Into<i128> {
+  const RANGE: RangeType;
 
-  fn get_value(self) -> InnerType;
+  fn get_value(self) -> i128;
 
   fn to_integer(self) -> Integer<{ Self::RANGE }>
   where
@@ -112,7 +112,7 @@ pub trait IntegerRange: Copy + ~const Into<InnerType> {
     ret
   }
 
-  fn to<T: ~const IntegerRange + ~const TryFrom<InnerType>>(self) -> T
+  fn to<T: ~const IntegerRange + ~const TryFrom<i128>>(self) -> T
   where
     (): RangeIsEmpty<{ Self::RANGE }, RET = false> + RangeIsEmpty<{ T::RANGE }, RET = false>,
     Integer<{ T::RANGE }>: RangeInRange<{ Self::RANGE }, CONTAINED = true>,
@@ -123,7 +123,7 @@ pub trait IntegerRange: Copy + ~const Into<InnerType> {
     };
     ret
   }
-  fn try_to<T: ~const IntegerRange + ~const From<InnerType>>(self) -> Option<T>
+  fn try_to<T: ~const IntegerRange + ~const From<i128>>(self) -> Option<T>
   where
     (): RangeIsEmpty<{ Self::RANGE }, RET = false> + RangeIsEmpty<{ T::RANGE }, RET = false>,
   {
@@ -137,43 +137,44 @@ pub trait IntegerRange: Copy + ~const Into<InnerType> {
   }
 }
 
-impl<const RANGE_GEN: RangeInclusive<InnerType>> const IntegerRange for Integer<RANGE_GEN>
+impl<const RANGE_GEN: RangeType> const IntegerRange for Integer<RANGE_GEN>
 where
   (): RangeIsEmpty<RANGE_GEN, RET = false>,
 {
-  const RANGE: RangeInclusive<InnerType> = RANGE_GEN;
+  const RANGE: RangeType = RANGE_GEN;
 
-  fn get_value(self) -> InnerType {
-    self.val
+  fn get_value(self) -> i128 {
+    self.val.to_i128()
   }
 }
 
-impl<const RANGE: RangeInclusive<InnerType>> const From<Integer<RANGE>> for InnerType
+impl<const RANGE: RangeType> const From<Integer<RANGE>> for i128
 where
   (): RangeIsEmpty<RANGE, RET = false>,
 {
   fn from(value: Integer<RANGE>) -> Self {
-    value.val
+    value.val.to_i128()
   }
 }
-impl<const RANGE: RangeInclusive<InnerType>> const From<InnerType> for Integer<RANGE>
+impl<const RANGE: RangeType> const From<i128> for Integer<RANGE>
 where
   (): RangeIsEmpty<RANGE, RET = false>,
 {
-  fn from(value: InnerType) -> Self {
-    Self { val: value }
+  fn from(value: i128) -> Self {
+    Self {
+      val: IntRepr::<RANGE>::from_i128(value),
+    }
   }
 }
 pub mod aliases {
   //use core::num::{NonZeroU8, NonZeroU16, NonZeroU32, NonZeroU64};
 
-  use super::{InnerType, Integer, IntegerRange, RangeInclusive};
+  use super::{Integer, IntegerRange, RangeType};
   macro_rules! aliases {
     ($nice_name:ident, $base_type:ty) => {
       impl const IntegerRange for $base_type {
-        const RANGE: RangeInclusive<InnerType> =
-          <$base_type>::MIN as InnerType..=<$base_type>::MAX as InnerType;
-        fn get_value(self) -> InnerType {
+        const RANGE: RangeType = <$base_type>::MIN as i128..=<$base_type>::MAX as i128;
+        fn get_value(self) -> i128 {
           self.into()
         }
       }

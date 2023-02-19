@@ -77,12 +77,14 @@ impl<const RANGE: RangeInclusive<InnerType>> Integer<RANGE>
 where
   (): RangeIsEmpty<RANGE, RET = false>,
 {
+  #[must_use]
   pub const fn new<const VALUE: InnerType>() -> Self
   where
     Self: ValInRange<VALUE>,
   {
     Self { val: VALUE }
   }
+  #[must_use]
   pub const fn new_exact() -> Self
   where
     Self: IsExact<EXACT = true>,
@@ -112,8 +114,7 @@ pub trait IntegerRange: Copy + ~const Into<InnerType> {
 
   fn to<T: ~const IntegerRange + ~const TryFrom<InnerType>>(self) -> T
   where
-    (): RangeIsEmpty<{ Self::RANGE }, RET = false>,
-    (): RangeIsEmpty<{ T::RANGE }, RET = false>,
+    (): RangeIsEmpty<{ Self::RANGE }, RET = false> + RangeIsEmpty<{ T::RANGE }, RET = false>,
     Integer<{ T::RANGE }>: RangeInRange<{ Self::RANGE }, CONTAINED = true>,
     Result<T, T::Error>: ~const Destruct,
   {
@@ -124,8 +125,7 @@ pub trait IntegerRange: Copy + ~const Into<InnerType> {
   }
   fn try_to<T: ~const IntegerRange + ~const From<InnerType>>(self) -> Option<T>
   where
-    (): RangeIsEmpty<{ Self::RANGE }, RET = false>,
-    (): RangeIsEmpty<{ T::RANGE }, RET = false>,
+    (): RangeIsEmpty<{ Self::RANGE }, RET = false> + RangeIsEmpty<{ T::RANGE }, RET = false>,
   {
     if Self::RANGE.contains(T::RANGE.start()) && Self::RANGE.contains(T::RANGE.end())
       || Self::RANGE.contains(&self.into())
@@ -167,7 +167,7 @@ where
 pub mod aliases {
   //use core::num::{NonZeroU8, NonZeroU16, NonZeroU32, NonZeroU64};
 
-  use super::*;
+  use super::{InnerType, Integer, IntegerRange, RangeInclusive};
   macro_rules! aliases {
     ($nice_name:ident, $base_type:ty) => {
       impl const IntegerRange for $base_type {

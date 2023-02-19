@@ -8,6 +8,10 @@
 #![feature(const_ops)]
 #![feature(const_convert)]
 #![allow(incomplete_features)]
+#![warn(clippy::pedantic)]
+#![warn(clippy::nursery)]
+#![allow(clippy::use_self)]
+
 mod impls;
 mod num;
 

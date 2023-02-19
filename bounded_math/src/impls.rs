@@ -50,11 +50,9 @@ impl_op! {Mul, mul |lhs, rhs| {
 }}
 
 impl_op! {Div, div |lhs, rhs| {
-  if *rhs.start() == 0 && *rhs.end() == 0 {
-    panic!("tried to divide by Integer<0..=0>");
-  }
-  let effective_end = if *rhs.end() != 0 { *rhs.end() } else {-1};
-  let effective_start = if *rhs.start() != 0 { *rhs.start() } else {1};
+  assert!(!(*rhs.start() == 0 && *rhs.end() == 0), "tried to divide by Integer<0..=0>");
+  let effective_end = if *rhs.end() == 0 { -1 } else {*rhs.end()};
+  let effective_start = if *rhs.start() == 0 { 1 } else {*rhs.start() };
 
   let val1 = *lhs.start() / effective_end;
   let val2 = *lhs.end() / effective_end;
@@ -88,9 +86,7 @@ impl_op! {Div, div |lhs, rhs| {
 }}
 
 impl_op! {Rem, rem |lhs, rhs| {
-  if *rhs.start() == 0 && *rhs.end() == 0 {
-    panic!("tried to get remainder of division by Integer(0..=0)");
-  }
+  assert!(!(*rhs.start() == 0 && *rhs.end() == 0), "tried to get remainder of division by Integer(0..=0)");
   let eff_rhs = rhs.start().abs().max(rhs.end().abs());
 
   let start = if *lhs.start() < 0 { -(eff_rhs - 1) } else {0};
@@ -103,8 +99,7 @@ impl_op! {Rem, rem |lhs, rhs| {
 impl<RHS: ~const IntegerRange, const LHS_RANGE: RangeInclusive<InnerType>> const PartialEq<RHS>
   for Integer<LHS_RANGE>
 where
-  (): RangeIsEmpty<LHS_RANGE, RET = false>,
-  (): RangeIsEmpty<{ RHS::RANGE }, RET = false>,
+  (): RangeIsEmpty<LHS_RANGE, RET = false> + RangeIsEmpty<{ RHS::RANGE }, RET = false>,
 {
   fn eq(&self, other: &RHS) -> bool {
     self.get_value().eq(&other.get_value())
@@ -114,8 +109,7 @@ where
 impl<RHS: ~const IntegerRange, const LHS_RANGE: RangeInclusive<InnerType>> const PartialOrd<RHS>
   for Integer<LHS_RANGE>
 where
-  (): RangeIsEmpty<LHS_RANGE, RET = false>,
-  (): RangeIsEmpty<{ RHS::RANGE }, RET = false>,
+  (): RangeIsEmpty<LHS_RANGE, RET = false> + RangeIsEmpty<{ RHS::RANGE }, RET = false>,
 {
   fn partial_cmp(&self, other: &RHS) -> Option<std::cmp::Ordering> {
     self.get_value().partial_cmp(&other.get_value())

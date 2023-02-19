@@ -1,9 +1,9 @@
 use core::fmt::Debug;
 
-use crate::{num::IntegerRange, *};
+use crate::{num::IntegerRange, Integer};
 
 fn assert_in_range<T: IntegerRange + Debug>(val: T, min: &mut bool, max: &mut bool) {
-  assert!(T::RANGE.contains(&val.into()), "{:?}", val);
+  assert!(T::RANGE.contains(&val.into()), "{val:?}");
   if val.get_value() == *T::RANGE.start() {
     *min = true;
   }
@@ -78,6 +78,7 @@ macro_rules! generate_tests {
 }
 
 #[test]
+#[allow(clippy::cognitive_complexity)]
 fn test_gen() {
   generate_tests!((3, 64)(-3, 64)(-64, 3)(-64, -3)(2, 64)(-2, 64)(-64, 2)(
     -64, -2

@@ -3,33 +3,34 @@ use std::{
   marker::Destruct,
 };
 
-use crate::{RangeInRange, RangeType};
+use crate::RangeType;
 
 #[derive(Clone, Copy)]
 #[repr(transparent)]
-pub struct IntRepr<const RANGE: RangeType>(<Self as SpecIntRepri8>::Repr);
+pub struct IntRepr<const RANGE: RangeType>(<Self as SpecIntReprU0>::Repr);
 
 #[const_trait]
 pub trait IntRepresentation {
-  type Repr: Clone + Copy + Debug + Display + ~const TryFrom<i128> + ~const Into<i128>;
+  type Repr: Clone + Copy + ~const TryFrom<u128> + ~const Into<u128>;
   fn to_i128(self) -> i128;
   fn from_i128(val: i128) -> Self;
 }
 
 impl<const RANGE: RangeType> const IntRepresentation for IntRepr<RANGE> {
-  type Repr = <Self as SpecIntRepri8>::Repr;
+  type Repr = <Self as SpecIntReprU0>::Repr;
   fn to_i128(self) -> i128 {
-    self.0.into()
+    RANGE.start().checked_add_unsigned(self.0.into()).expect("")
   }
   fn from_i128(val: i128) -> Self
   where
-    <<IntRepr<RANGE> as SpecIntRepri8>::Repr as TryFrom<i128>>::Error: ~const Destruct,
+    <<IntRepr<RANGE> as SpecIntReprU0>::Repr as TryFrom<u128>>::Error: ~const Destruct,
   {
     if RANGE.contains(&val) {
-      let Some(val) = val.try_into().ok() else {
-           unreachable!()
-        };
-      Self(val)
+      let offset = val.abs_diff(*RANGE.start());
+      let Some(offset) = offset.try_into().ok() else {
+          unreachable!()
+      };
+      Self(offset)
     } else {
       panic!("Tried to convert to IntReprt from an out of range value")
     }
@@ -37,13 +38,24 @@ impl<const RANGE: RangeType> const IntRepresentation for IntRepr<RANGE> {
 }
 impl<const RANGE: RangeType> Debug for IntRepr<RANGE> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    <<Self as SpecIntRepri8>::Repr as Debug>::fmt(&self.0, f)
+    Debug::fmt(&self.to_i128(), f)
   }
 }
 impl<const RANGE: RangeType> Display for IntRepr<RANGE> {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    <<Self as SpecIntRepri8>::Repr as Display>::fmt(&self.0, f)
+    Display::fmt(&self.to_i128(), f)
   }
+}
+
+trait CanHoldValueInner<const VAL: u128> {
+  const RET: bool;
+}
+
+trait CanHoldValue<const VAL: u128> {}
+impl<T, const VAL: u128> CanHoldValue<VAL> for T where T: CanHoldValueInner<VAL, RET = true> {}
+
+const fn range_size(r: RangeType) -> u128 {
+  r.end().abs_diff(*r.start())
 }
 
 macro_rules! repr_spec {
@@ -51,7 +63,10 @@ macro_rules! repr_spec {
     #[const_trait]
     #[doc(hidden)]
     pub trait $largest_prim_tr {
-      type Repr: Clone + Copy + Debug + Display + ~const TryFrom<i128> + ~const Into<i128>;
+      type Repr: Clone + Copy + ~const TryFrom<u128> + ~const Into<u128>;
+    }
+    impl<const VAL: u128> CanHoldValueInner<VAL> for $largest_prim {
+      const RET: bool = VAL <= Self::MAX as u128;
     }
     impl<const RANGE: RangeType> const $largest_prim_tr for IntRepr<RANGE>
     {
@@ -67,12 +82,15 @@ macro_rules! repr_spec {
     #[const_trait]
     #[doc(hidden)]
     pub trait $cur_prim_tr {
-        type Repr: Clone + Copy + Debug + Display + ~const TryFrom<i128> + ~const Into<i128>;
+        type Repr: Clone + Copy + ~const TryFrom<u128> + ~const Into<u128>;
+    }
+    impl<const VAL: u128> CanHoldValueInner<VAL> for $cur_prim {
+      const RET: bool = VAL <= Self::MAX.into();
     }
 
     impl<const RANGE: RangeType> const $cur_prim_tr for IntRepr<RANGE>
     where
-      $cur_prim: RangeInRange<RANGE, CONTAINED = true>,
+      $cur_prim: CanHoldValue<{ range_size(RANGE) }>,
     {
       type Repr = $cur_prim;
     }
@@ -92,10 +110,36 @@ macro_rules! repr_spec {
 repr_spec!(
   IntRepresentation,
   (
-    (i128, SpecIntRepri128),
-    (i64, SpecIntRepri64),
-    (i32, SpecIntRepri32),
-    (i16, SpecIntRepri16),
-    (i8, SpecIntRepri8)
+    (u128, SpecIntReprU128),
+    (u64, SpecIntReprU64),
+    (u32, SpecIntReprU32),
+    (u16, SpecIntReprU16),
+    (u8, SpecIntReprU8),
+    (U0, SpecIntReprU0)
   )
 );
+
+#[non_exhaustive]
+#[derive(Clone, Copy)]
+#[repr(transparent)]
+pub struct U0;
+
+impl U0 {
+  const MAX: U0 = U0;
+}
+impl const From<U0> for u128 {
+  fn from(_: U0) -> Self {
+    0
+  }
+}
+
+impl const TryFrom<u128> for U0 {
+  type Error = ();
+  fn try_from(value: u128) -> Result<Self, Self::Error> {
+    if value == 0 {
+      Ok(U0)
+    } else {
+      Err(())
+    }
+  }
+}

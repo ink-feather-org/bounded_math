@@ -9,6 +9,7 @@
 #![feature(const_convert)]
 #![feature(specialization)]
 #![feature(const_result_drop)]
+#![feature(const_option)]
 #![allow(incomplete_features)]
 #![warn(clippy::pedantic)]
 #![warn(clippy::nursery)]

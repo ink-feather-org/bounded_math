@@ -144,6 +144,16 @@ fn test_size() {
     8
   );
   assert_eq!(mem::size_of::<Integer<{ i128::MIN..=i128::MAX }>>(), 16);
+
+  assert_eq!(
+    mem::size_of::<Integer<{ (i16::MIN as i128)..=(i16::MIN as i128 + u8::MAX as i128) }>>(),
+    1
+  );
+
+  assert_eq!(
+    mem::size_of::<Integer<{ (i16::MIN as i128)..=(i16::MIN as i128) }>>(),
+    0
+  );
 }
 
 #[test]

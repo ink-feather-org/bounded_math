@@ -10,6 +10,7 @@
 #![feature(specialization)]
 #![feature(const_result_drop)]
 #![feature(const_option)]
+#![cfg_attr(test, feature(const_num_from_num))]
 #![allow(incomplete_features)]
 #![warn(clippy::pedantic)]
 #![warn(clippy::nursery)]

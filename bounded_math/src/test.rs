@@ -132,34 +132,34 @@ fn test_size() {
 
   assert_eq!(mem::size_of::<Integer<{ -128..=128 }>>(), 2);
   assert_eq!(
-    mem::size_of::<Integer<{ (i16::MIN as i128)..=(i16::MAX as i128) }>>(),
+    mem::size_of::<Integer<{ (i16::MIN.into())..=(i16::MAX.into()) }>>(),
     2
   );
   assert_eq!(
-    mem::size_of::<Integer<{ (i32::MIN as i128)..=(i32::MAX as i128) }>>(),
+    mem::size_of::<Integer<{ (i32::MIN.into())..=(i32::MAX.into()) }>>(),
     4
   );
   assert_eq!(
-    mem::size_of::<Integer<{ (i64::MIN as i128)..=(i64::MAX as i128) }>>(),
+    mem::size_of::<Integer<{ (i64::MIN.into())..=(i64::MAX.into()) }>>(),
     8
   );
   assert_eq!(mem::size_of::<Integer<{ i128::MIN..=i128::MAX }>>(), 16);
 
   assert_eq!(
-    mem::size_of::<Integer<{ (i16::MIN as i128)..=(i16::MIN as i128 + u8::MAX as i128) }>>(),
+    mem::size_of::<Integer<{ (i16::MIN.into())..=(i128::from(i16::MIN) + i128::from(u8::MAX)) }>>(),
     1
   );
 
   assert_eq!(
-    mem::size_of::<Integer<{ (i16::MIN as i128)..=(i16::MIN as i128) }>>(),
+    mem::size_of::<Integer<{ (i16::MIN.into())..=(i16::MIN.into()) }>>(),
     0
   );
 }
 
 #[test]
 fn test_bound() {
-  const A: i128 = 123456;
-  const B: i128 = 1234567;
+  const A: i128 = 123_456;
+  const B: i128 = 1_234_567;
   const C: i128 = A + B;
 
   let a = Integer::<{ A..=A }>::new_exact();

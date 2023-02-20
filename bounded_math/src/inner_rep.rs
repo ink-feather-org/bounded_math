@@ -30,7 +30,8 @@ impl<const RANGE: RangeType> const IntRepresentation for IntRepr<RANGE> {
   where
     <<IntRepr<RANGE> as SpecIntReprU0>::Repr as TryFrom<u128>>::Error: ~const Destruct,
   {
-    let offset = val.abs_diff(*RANGE.start());
+    #[allow(clippy::cast_sign_loss)]
+    let offset = val.wrapping_sub(*RANGE.start()) as u128;
     let Some(offset) = offset.try_into().ok() else {
       unsafe {unreachable_unchecked()}
     };

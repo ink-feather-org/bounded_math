@@ -1,5 +1,6 @@
 use std::{
   fmt::{Debug, Display},
+  hint::unreachable_unchecked,
   marker::Destruct,
 };
 
@@ -13,27 +14,27 @@ pub struct IntRepr<const RANGE: RangeType>(<Self as SpecIntReprU0>::Repr);
 pub trait IntRepresentation {
   type Repr: Clone + Copy + ~const TryFrom<u128> + ~const Into<u128>;
   fn to_i128(self) -> i128;
-  fn from_i128(val: i128) -> Self;
+  unsafe fn from_i128_unchecked(val: i128) -> Self;
 }
 
 impl<const RANGE: RangeType> const IntRepresentation for IntRepr<RANGE> {
   type Repr = <Self as SpecIntReprU0>::Repr;
+  #[inline]
   fn to_i128(self) -> i128 {
-    RANGE.start().checked_add_unsigned(self.0.into()).expect("")
+    let res = RANGE.start().checked_add_unsigned(self.0.into());
+    debug_assert!(res.is_some());
+    unsafe { res.unwrap_unchecked() }
   }
-  fn from_i128(val: i128) -> Self
+  #[inline]
+  unsafe fn from_i128_unchecked(val: i128) -> Self
   where
     <<IntRepr<RANGE> as SpecIntReprU0>::Repr as TryFrom<u128>>::Error: ~const Destruct,
   {
-    if RANGE.contains(&val) {
-      let offset = val.abs_diff(*RANGE.start());
-      let Some(offset) = offset.try_into().ok() else {
-          unreachable!()
-      };
-      Self(offset)
-    } else {
-      panic!("Tried to convert to IntReprt from an out of range value")
-    }
+    let offset = val.abs_diff(*RANGE.start());
+    let Some(offset) = offset.try_into().ok() else {
+      unsafe {unreachable_unchecked()}
+    };
+    Self(offset)
   }
 }
 impl<const RANGE: RangeType> Debug for IntRepr<RANGE> {
@@ -128,6 +129,7 @@ impl U0 {
   const MAX: U0 = U0;
 }
 impl const From<U0> for u128 {
+  #[inline]
   fn from(_: U0) -> Self {
     0
   }
@@ -135,6 +137,7 @@ impl const From<U0> for u128 {
 
 impl const TryFrom<u128> for U0 {
   type Error = ();
+  #[inline]
   fn try_from(value: u128) -> Result<Self, Self::Error> {
     if value == 0 {
       Ok(U0)

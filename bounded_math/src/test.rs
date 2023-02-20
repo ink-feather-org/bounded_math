@@ -1,6 +1,11 @@
 use core::{fmt::Debug, mem};
+use std::{hint::black_box, ops::RangeInclusive};
 
-use crate::{num::IntegerRange, Integer};
+use test::Bencher;
+
+extern crate test;
+
+use crate::{num::IntegerRange, Integer, NiceU8};
 
 fn assert_in_range<T: IntegerRange + Debug>(val: T, min: &mut bool, max: &mut bool) {
   assert!(T::RANGE.contains(&val.into()), "{val:?}");
@@ -162,10 +167,51 @@ fn test_bound() {
   const B: i128 = 1_234_567;
   const C: i128 = A + B;
 
-  let a = Integer::<{ A..=A }>::new_exact();
-  let b = Integer::<{ B..=B }>::new_exact();
+  let a = Integer::<{ A..=(A + 1) }>::new::<A>();
+  let b = Integer::<{ B..=(B + 1) }>::new::<B>();
   let sum = a + b;
 
   let expected = Integer::<{ C..=C }>::new_exact();
   assert!(sum == expected);
 }
+#[test]
+fn test_from() {
+  assert!(NiceU8::try_from(256).is_err());
+  assert!(NiceU8::try_from(255).is_ok());
+}
+
+macro_rules! gen_bench {
+  ($start:literal..=$end:literal, $prim:ty, $name_prim:ident, $name_integer:ident) => {
+    #[bench]
+    fn $name_prim(b: &mut Bencher) {
+      const RANGE: RangeInclusive<i128> = $start..=$end;
+      b.iter(|| {
+        for a in RANGE {
+          for b in RANGE {
+            let a = <$prim>::try_from(a).unwrap();
+            let b = <$prim>::try_from(b).unwrap();
+            black_box(a.wrapping_add(b));
+          }
+        }
+      });
+    }
+
+    #[bench]
+    fn $name_integer(b: &mut Bencher) {
+      const RANGE: RangeInclusive<i128> = $start..=$end;
+      b.iter(|| {
+        for a in RANGE {
+          for b in RANGE {
+            let a = Integer::<RANGE>::try_from(a).unwrap();
+            let b = Integer::<RANGE>::try_from(b).unwrap();
+            black_box(a + b);
+          }
+        }
+      });
+    }
+  };
+}
+gen_bench! {0..=255, u8, bench_u8, bench_u8_integer}
+gen_bench! {-1..=254, i16, bench_n1_254_i16, bench_n1_254_integer}
+
+gen_bench! {-1200..=-1000, i16, bench_n1200_n1000_i16, bench_n1200_n1000_integer}

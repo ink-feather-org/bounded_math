@@ -21,6 +21,14 @@ where
   val: IntRepr<RANGE>,
 }
 
+impl<const RANGE: RangeType> Integer<RANGE>
+where
+  (): RangeIsEmpty<RANGE, RET = false>,
+{
+  pub const MIN: Self = Self::try_from(*RANGE.start()).ok().unwrap();
+  pub const MAX: Self = Self::try_from(*RANGE.end()).ok().unwrap();
+}
+
 trait ContainsRet<const VALUE: i128> {
   const RET: bool;
 }
@@ -76,21 +84,23 @@ where
   (): RangeIsEmpty<RANGE, RET = false>,
 {
   #[must_use]
+  #[inline]
   pub const fn new<const VALUE: i128>() -> Self
   where
     Self: ValInRange<VALUE>,
   {
     Self {
-      val: IntRepr::<RANGE>::from_i128(VALUE),
+      val: unsafe { IntRepr::<RANGE>::from_i128_unchecked(VALUE) },
     }
   }
   #[must_use]
+  #[inline]
   pub const fn new_exact() -> Self
   where
     Self: IsExact<EXACT = true>,
   {
     Self {
-      val: IntRepr::<RANGE>::from_i128(*RANGE.start()),
+      val: unsafe { IntRepr::<RANGE>::from_i128_unchecked(*RANGE.start()) },
     }
   }
 }
@@ -112,6 +122,7 @@ pub trait IntegerRange: Copy + ~const Into<i128> {
     ret
   }
 
+  #[inline]
   fn to<T: ~const IntegerRange + ~const TryFrom<i128>>(self) -> T
   where
     (): RangeIsEmpty<{ Self::RANGE }, RET = false> + RangeIsEmpty<{ T::RANGE }, RET = false>,
@@ -119,18 +130,21 @@ pub trait IntegerRange: Copy + ~const Into<i128> {
     Result<T, T::Error>: ~const Destruct,
   {
     let Ok(ret) = self.get_value().try_into() else {
-        unreachable!()
+      unreachable!()
     };
     ret
   }
-  fn try_to<T: ~const IntegerRange + ~const From<i128>>(self) -> Option<T>
+
+  #[inline]
+  fn try_to<T: ~const IntegerRange + ~const TryFrom<i128>>(self) -> Option<T>
   where
     (): RangeIsEmpty<{ Self::RANGE }, RET = false> + RangeIsEmpty<{ T::RANGE }, RET = false>,
+    <T as TryFrom<i128>>::Error: ~const Destruct,
   {
     if Self::RANGE.contains(T::RANGE.start()) && Self::RANGE.contains(T::RANGE.end())
       || Self::RANGE.contains(&self.into())
     {
-      Some(self.get_value().into())
+      Some(self.get_value().try_into().ok()?)
     } else {
       None
     }
@@ -143,6 +157,7 @@ where
 {
   const RANGE: RangeType = RANGE_GEN;
 
+  #[inline]
   fn get_value(self) -> i128 {
     self.val.to_i128()
   }
@@ -152,17 +167,24 @@ impl<const RANGE: RangeType> const From<Integer<RANGE>> for i128
 where
   (): RangeIsEmpty<RANGE, RET = false>,
 {
+  #[inline]
   fn from(value: Integer<RANGE>) -> Self {
     value.val.to_i128()
   }
 }
-impl<const RANGE: RangeType> const From<i128> for Integer<RANGE>
+impl<const RANGE: RangeType> const TryFrom<i128> for Integer<RANGE>
 where
   (): RangeIsEmpty<RANGE, RET = false>,
 {
-  fn from(value: i128) -> Self {
-    Self {
-      val: IntRepr::<RANGE>::from_i128(value),
+  type Error = ();
+  #[inline]
+  fn try_from(value: i128) -> Result<Self, Self::Error> {
+    if RANGE.contains(&value) {
+      Ok(Self {
+        val: unsafe { IntRepr::<RANGE>::from_i128_unchecked(value) },
+      })
+    } else {
+      Err(())
     }
   }
 }
@@ -174,6 +196,7 @@ pub mod aliases {
     ($nice_name:ident, $base_type:ty) => {
       impl const IntegerRange for $base_type {
         const RANGE: RangeType = <$base_type>::MIN as i128..=<$base_type>::MAX as i128;
+        #[inline]
         fn get_value(self) -> i128 {
           self.into()
         }

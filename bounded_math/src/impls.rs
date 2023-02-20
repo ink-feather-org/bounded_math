@@ -26,8 +26,11 @@ macro_rules! impl_op {
       {
         type Output = Integer<{ $op_fn_name::extend_bounds(LHS_RANGE, RHS::RANGE) }>;
 
+        #[inline]
         fn $op_fn_name(self, rhs: RHS) -> Self::Output {
-          let res = Self::Output::from($op_tr::$op_fn_name(self.get_value(), i128::from(rhs)));
+          let res = Self::Output::try_from($op_tr::$op_fn_name(self.get_value(), i128::from(rhs)));
+          debug_assert!(res.is_ok());
+          let res = unsafe {res.ok().unwrap_unchecked()};
           debug_assert!({ $op_fn_name::extend_bounds(LHS_RANGE, RHS::RANGE) }.contains(&res.get_value()));
           // Not usable in const: debug_assert!({ $op_fn_name::extend_bounds(LHS_RANGE, RHS::RANGE) }.contains(&res.get_value()), "Invalid result: {}({:?}, {:?}) = {:?}", stringify!($op_fn_name), self, rhs.to_integer(), res);
           res
@@ -99,6 +102,7 @@ impl<RHS: ~const IntegerRange, const LHS_RANGE: RangeType> const PartialEq<RHS>
 where
   (): RangeIsEmpty<LHS_RANGE, RET = false> + RangeIsEmpty<{ RHS::RANGE }, RET = false>,
 {
+  #[inline]
   fn eq(&self, other: &RHS) -> bool {
     self.get_value().eq(&other.get_value())
   }
@@ -109,6 +113,7 @@ impl<RHS: ~const IntegerRange, const LHS_RANGE: RangeType> const PartialOrd<RHS>
 where
   (): RangeIsEmpty<LHS_RANGE, RET = false> + RangeIsEmpty<{ RHS::RANGE }, RET = false>,
 {
+  #[inline]
   fn partial_cmp(&self, other: &RHS) -> Option<std::cmp::Ordering> {
     self.get_value().partial_cmp(&other.get_value())
   }

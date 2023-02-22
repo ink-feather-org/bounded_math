@@ -5,26 +5,13 @@ use crate::{
   inner_rep::{IntRepr, IntRepresentation},
   RangeType,
 };
-pub trait RangeIsEmpty<const RANGE: RangeType> {
-  const RET: bool;
-}
-impl<const RANGE: RangeType> RangeIsEmpty<RANGE> for () {
-  const RET: bool = RANGE.is_empty();
-}
-
 #[derive(Clone, Copy)]
 #[repr(transparent)]
-pub struct Integer<const RANGE: RangeType>
-where
-  (): RangeIsEmpty<RANGE, RET = false>,
-{
+pub struct Integer<const RANGE: RangeType> {
   val: IntRepr<RANGE>,
 }
 
-impl<const RANGE: RangeType> Integer<RANGE>
-where
-  (): RangeIsEmpty<RANGE, RET = false>,
-{
+impl<const RANGE: RangeType> Integer<RANGE> {
   pub const MIN: Self = Self::try_from(*RANGE.start()).ok().unwrap();
   pub const MAX: Self = Self::try_from(*RANGE.end()).ok().unwrap();
 }
@@ -33,18 +20,13 @@ trait ContainsRet<const VALUE: i128> {
   const RET: bool;
 }
 
-impl<const RANGE: RangeType, const VALUE: i128> ContainsRet<VALUE> for Integer<RANGE>
-where
-  (): RangeIsEmpty<RANGE, RET = false>,
-{
+impl<const RANGE: RangeType, const VALUE: i128> ContainsRet<VALUE> for Integer<RANGE> {
   const RET: bool = RANGE.contains(&VALUE);
 }
 
 pub trait ValInRange<const VALUE: i128> {}
-impl<const RANGE: RangeType, const VALUE: i128> ValInRange<VALUE> for Integer<RANGE>
-where
-  (): RangeIsEmpty<RANGE, RET = false>,
-  Self: ContainsRet<VALUE, RET = true>,
+impl<const RANGE: RangeType, const VALUE: i128> ValInRange<VALUE> for Integer<RANGE> where
+  Self: ContainsRet<VALUE, RET = true>
 {
 }
 pub trait RangeInRange<const CONTAINED_RANGE: RangeType> {
@@ -55,10 +37,7 @@ impl<T: IntegerRange, const CONTAINED_RANGE: RangeType> RangeInRange<CONTAINED_R
     T::RANGE.contains(CONTAINED_RANGE.start()) && T::RANGE.contains(CONTAINED_RANGE.end());
 }
 
-impl<const RANGE: RangeType> Debug for Integer<RANGE>
-where
-  (): RangeIsEmpty<RANGE, RET = false>,
-{
+impl<const RANGE: RangeType> Debug for Integer<RANGE> {
   fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
     write!(
       f,
@@ -72,17 +51,11 @@ where
 pub trait IsExact {
   const EXACT: bool;
 }
-impl<const RANGE: RangeType> IsExact for Integer<RANGE>
-where
-  (): RangeIsEmpty<RANGE, RET = false>,
-{
+impl<const RANGE: RangeType> IsExact for Integer<RANGE> {
   const EXACT: bool = RANGE.start() == RANGE.end();
 }
 
-impl<const RANGE: RangeType> Integer<RANGE>
-where
-  (): RangeIsEmpty<RANGE, RET = false>,
-{
+impl<const RANGE: RangeType> Integer<RANGE> {
   #[must_use]
   #[inline]
   pub const fn new<const VALUE: i128>() -> Self
@@ -112,10 +85,7 @@ pub trait IntegerRange: Copy + ~const Into<i128> {
 
   fn get_value(self) -> i128;
 
-  fn to_integer(self) -> Integer<{ Self::RANGE }>
-  where
-    (): RangeIsEmpty<{ Self::RANGE }, RET = false>,
-  {
+  fn to_integer(self) -> Integer<{ Self::RANGE }> {
     let Ok(ret) = self.get_value().try_into() else {
       unreachable!()
     };
@@ -125,7 +95,6 @@ pub trait IntegerRange: Copy + ~const Into<i128> {
   #[inline]
   fn to<T: ~const IntegerRange + ~const TryFrom<i128>>(self) -> T
   where
-    (): RangeIsEmpty<{ Self::RANGE }, RET = false> + RangeIsEmpty<{ T::RANGE }, RET = false>,
     Integer<{ T::RANGE }>: RangeInRange<{ Self::RANGE }, CONTAINED = true>,
     Result<T, T::Error>: ~const Destruct,
   {
@@ -138,7 +107,6 @@ pub trait IntegerRange: Copy + ~const Into<i128> {
   #[inline]
   fn try_to<T: ~const IntegerRange + ~const TryFrom<i128>>(self) -> Option<T>
   where
-    (): RangeIsEmpty<{ Self::RANGE }, RET = false> + RangeIsEmpty<{ T::RANGE }, RET = false>,
     <T as TryFrom<i128>>::Error: ~const Destruct,
   {
     if Self::RANGE.contains(T::RANGE.start()) && Self::RANGE.contains(T::RANGE.end())
@@ -151,10 +119,7 @@ pub trait IntegerRange: Copy + ~const Into<i128> {
   }
 }
 
-impl<const RANGE_GEN: RangeType> const IntegerRange for Integer<RANGE_GEN>
-where
-  (): RangeIsEmpty<RANGE_GEN, RET = false>,
-{
+impl<const RANGE_GEN: RangeType> const IntegerRange for Integer<RANGE_GEN> {
   const RANGE: RangeType = RANGE_GEN;
 
   #[inline]
@@ -163,19 +128,13 @@ where
   }
 }
 
-impl<const RANGE: RangeType> const From<Integer<RANGE>> for i128
-where
-  (): RangeIsEmpty<RANGE, RET = false>,
-{
+impl<const RANGE: RangeType> const From<Integer<RANGE>> for i128 {
   #[inline]
   fn from(value: Integer<RANGE>) -> Self {
     value.val.to_i128()
   }
 }
-impl<const RANGE: RangeType> const TryFrom<i128> for Integer<RANGE>
-where
-  (): RangeIsEmpty<RANGE, RET = false>,
-{
+impl<const RANGE: RangeType> const TryFrom<i128> for Integer<RANGE> {
   type Error = ();
   #[inline]
   fn try_from(value: i128) -> Result<Self, Self::Error> {

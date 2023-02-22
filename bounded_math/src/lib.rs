@@ -28,7 +28,7 @@ type RangeType = RangeInclusive<i128>;
 
 use std::ops::RangeInclusive;
 
-pub use num::{aliases::*, Integer, IntegerRange, RangeInRange, RangeIsEmpty};
+pub use num::{aliases::*, Integer, IntegerRange, RangeInRange};
 
 #[cfg(test)]
 mod test;

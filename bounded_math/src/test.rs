@@ -183,6 +183,7 @@ fn test_from() {
 macro_rules! gen_bench {
   ($start:literal..=$end:literal, $prim:ty, $name_prim:ident, $name_integer:ident) => {
     #[bench]
+    #[cfg(not(miri))]
     fn $name_prim(b: &mut Bencher) {
       const RANGE: RangeInclusive<i128> = $start..=$end;
       b.iter(|| {
@@ -197,6 +198,7 @@ macro_rules! gen_bench {
     }
 
     #[bench]
+    #[cfg(not(miri))]
     fn $name_integer(b: &mut Bencher) {
       const RANGE: RangeInclusive<i128> = $start..=$end;
       b.iter(|| {

@@ -1,6 +1,6 @@
 use core::ops::{Add, Div, Mul, Rem, Sub};
 
-use crate::{Integer, IntegerRange, RangeIsEmpty, RangeType};
+use crate::{Integer, IntegerRange, RangeType};
 
 macro_rules! impl_op {
     ($op_tr:ident, $op_fn_name:ident | $lhs_name:ident, $rhs_name:ident | {$($body:tt)+}) => {
@@ -19,16 +19,13 @@ macro_rules! impl_op {
       impl<RHS: ~const IntegerRange, const LHS_RANGE: RangeType>
         const $op_tr<RHS> for Integer<LHS_RANGE>
       where
-        (): RangeIsEmpty<LHS_RANGE, RET = false>,
-        (): RangeIsEmpty<{ RHS::RANGE }, RET = false>,
-        (): RangeIsEmpty<{ $op_fn_name::extend_bounds(LHS_RANGE, RHS::RANGE) }, RET = false>,
-        i128: ~const From<RHS>
+        Integer<{ $op_fn_name::extend_bounds(LHS_RANGE, RHS::RANGE) }>:
       {
         type Output = Integer<{ $op_fn_name::extend_bounds(LHS_RANGE, RHS::RANGE) }>;
 
         #[inline]
         fn $op_fn_name(self, rhs: RHS) -> Self::Output {
-          let res = Self::Output::try_from($op_tr::$op_fn_name(self.get_value(), i128::from(rhs)));
+          let res = Self::Output::try_from($op_tr::$op_fn_name(self.get_value(), rhs.get_value()));
           debug_assert!(res.is_ok());
           let res = unsafe {res.ok().unwrap_unchecked()};
           debug_assert!({ $op_fn_name::extend_bounds(LHS_RANGE, RHS::RANGE) }.contains(&res.get_value()));
@@ -99,8 +96,6 @@ impl_op! {Rem, rem |lhs, rhs| {
 // TODO these could be optimized since the return value is always the same if the two ranges don't overlap.
 impl<RHS: ~const IntegerRange, const LHS_RANGE: RangeType> const PartialEq<RHS>
   for Integer<LHS_RANGE>
-where
-  (): RangeIsEmpty<LHS_RANGE, RET = false> + RangeIsEmpty<{ RHS::RANGE }, RET = false>,
 {
   #[inline]
   fn eq(&self, other: &RHS) -> bool {
@@ -110,8 +105,6 @@ where
 
 impl<RHS: ~const IntegerRange, const LHS_RANGE: RangeType> const PartialOrd<RHS>
   for Integer<LHS_RANGE>
-where
-  (): RangeIsEmpty<LHS_RANGE, RET = false> + RangeIsEmpty<{ RHS::RANGE }, RET = false>,
 {
   #[inline]
   fn partial_cmp(&self, other: &RHS) -> Option<std::cmp::Ordering> {

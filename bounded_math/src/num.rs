@@ -1,5 +1,4 @@
-use core::fmt::Debug;
-use std::marker::Destruct;
+use core::{fmt::Debug, marker::Destruct};
 
 use crate::{
   inner_rep::{IntRepr, IntRepresentation},

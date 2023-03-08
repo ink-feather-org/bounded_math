@@ -13,20 +13,20 @@
 #![feature(const_try)]
 #![feature(const_option_ext)]
 #![feature(const_refs_to_cell)]
+#![feature(inline_const)]
 #![cfg_attr(test, feature(test, const_num_from_num))]
 #![allow(incomplete_features)]
 #![warn(clippy::pedantic)]
 #![warn(clippy::nursery)]
-#![allow(clippy::use_self)]
+#![cfg_attr(not(test), no_std)]
 
 mod impls;
 mod num;
 
 mod inner_rep;
 
+use core::ops::RangeInclusive;
 type RangeType = RangeInclusive<i128>;
-
-use std::ops::RangeInclusive;
 
 pub use num::{aliases::*, Integer, IntegerRange, RangeInRange};
 

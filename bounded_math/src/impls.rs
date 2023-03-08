@@ -1,4 +1,7 @@
-use core::ops::{Add, Div, Mul, Rem, Sub};
+use core::{
+  cmp::Ordering,
+  ops::{Add, Div, Mul, Rem, Sub},
+};
 
 use crate::{Integer, IntegerRange, RangeType};
 
@@ -93,13 +96,32 @@ impl_op! {Rem, rem |lhs, rhs| {
   start..=end
 }}
 
-// TODO these could be optimized since the return value is always the same if the two ranges don't overlap.
+const fn ranges_overlap<RHS: ~const IntegerRange, const LHS_RANGE: RangeType>() -> bool {
+  let lhs_contains_rhs_start = LHS_RANGE.contains(RHS::RANGE.start());
+  let lhs_contains_rhs_end = LHS_RANGE.contains(RHS::RANGE.end());
+  let rhs_contains_lhs_start = RHS::RANGE.contains(LHS_RANGE.start());
+  lhs_contains_rhs_start || lhs_contains_rhs_end || rhs_contains_lhs_start
+}
+
 impl<RHS: ~const IntegerRange, const LHS_RANGE: RangeType> const PartialEq<RHS>
   for Integer<LHS_RANGE>
 {
   #[inline]
   fn eq(&self, other: &RHS) -> bool {
-    self.get_value().eq(&other.get_value())
+    const fn must_be_equal<RHS: ~const IntegerRange, const LHS_RANGE: RangeType>() -> bool {
+      let lhs_exact = LHS_RANGE.start() == LHS_RANGE.end();
+      let rhs_exact = RHS::RANGE.start() == RHS::RANGE.end();
+      let same_start = LHS_RANGE.start() == RHS::RANGE.start();
+      lhs_exact && rhs_exact && same_start
+    }
+
+    if const { must_be_equal::<RHS, LHS_RANGE>() } {
+      true
+    } else if const { !ranges_overlap::<RHS, LHS_RANGE>() } {
+      false
+    } else {
+      self.get_value().eq(&other.get_value())
+    }
   }
 }
 
@@ -107,7 +129,16 @@ impl<RHS: ~const IntegerRange, const LHS_RANGE: RangeType> const PartialOrd<RHS>
   for Integer<LHS_RANGE>
 {
   #[inline]
-  fn partial_cmp(&self, other: &RHS) -> Option<std::cmp::Ordering> {
-    self.get_value().partial_cmp(&other.get_value())
+  fn partial_cmp(&self, other: &RHS) -> Option<Ordering> {
+    if const { ranges_overlap::<RHS, LHS_RANGE>() } {
+      self.get_value().partial_cmp(&other.get_value())
+    } else {
+      // Since we already know that the ranges don't overlap it doesn't matter which bound we compare from which Range
+      if RHS::RANGE.start() < LHS_RANGE.start() {
+        Some(Ordering::Less)
+      } else {
+        Some(Ordering::Greater)
+      }
+    }
   }
 }

@@ -1,5 +1,5 @@
-use std::{
-  fmt::{Debug, Display},
+use core::{
+  fmt::{self, Debug, Display},
   hint::unreachable_unchecked,
   marker::Destruct,
 };
@@ -28,7 +28,7 @@ impl<const RANGE: RangeType> const IntRepresentation for IntRepr<RANGE> {
   #[inline]
   unsafe fn from_i128_unchecked(val: i128) -> Self
   where
-    <<IntRepr<RANGE> as SpecIntReprU0>::Repr as TryFrom<u128>>::Error: ~const Destruct,
+    <<Self as SpecIntReprU0>::Repr as TryFrom<u128>>::Error: ~const Destruct,
   {
     #[allow(clippy::cast_sign_loss)]
     let offset = val.wrapping_sub(*RANGE.start()) as u128;
@@ -39,12 +39,12 @@ impl<const RANGE: RangeType> const IntRepresentation for IntRepr<RANGE> {
   }
 }
 impl<const RANGE: RangeType> Debug for IntRepr<RANGE> {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     Debug::fmt(&self.to_i128(), f)
   }
 }
 impl<const RANGE: RangeType> Display for IntRepr<RANGE> {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     Display::fmt(&self.to_i128(), f)
   }
 }
@@ -127,7 +127,8 @@ repr_spec!(
 pub struct U0;
 
 impl U0 {
-  const MAX: U0 = U0;
+  pub const MAX: Self = Self;
+  pub const MIN: Self = Self;
 }
 impl const From<U0> for u128 {
   #[inline]
@@ -141,7 +142,7 @@ impl const TryFrom<u128> for U0 {
   #[inline]
   fn try_from(value: u128) -> Result<Self, Self::Error> {
     if value == 0 {
-      Ok(U0)
+      Ok(Self)
     } else {
       Err(())
     }
